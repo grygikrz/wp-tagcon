@@ -1,2 +1,2 @@
 # wp-tagcon 1.0
-Wordpress plugin - Automaticly add content to posts based on selected tag
+Wordpress plugin - Automaticly adding content to posts based on selected tag

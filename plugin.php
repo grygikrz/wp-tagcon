@@ -33,15 +33,15 @@ class Items_List {
 	 *
 	 * @return mixed
 	 */
-	public static function get_items( $per_page = 5, $page_number = 1 ) {
+	public static function get_items( $per_page = 5, $page_number = 1, $table ) {
 
 		global $wpdb;
 
-		$sql = "SELECT * FROM {$wpdb->prefix}tagcon";
+		$sql = "SELECT * FROM {$wpdb->prefix}".$table;
 
 		if ( ! empty( $_REQUEST['orderby'] ) ) {
 			$sql .= ' ORDER BY ' . esc_sql( $_REQUEST['orderby'] );
-			$sql .= ! empty( $_REQUEST['order'] ) ? ' ' . esc_sql( $_REQUEST['order'] ) : ' ASC';
+			$sql .= ! empty( $_REQUEST['order'] ) ? ' ' . esc_sql( $_REQUEST['order'] ) : ' DESC';
 		}
 
 		$sql .= " LIMIT $per_page";
@@ -53,17 +53,24 @@ class Items_List {
 		return $result;
 	}
 
+	public static function get_items_ce( $table ) {
+
+		global $wpdb;
+
+		$sql_results = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}{$table} ORDER BY id DESC");
+		return $sql_results;
+	}
 
 	/**
 	 * Delete a item record.
 	 *
 	 * @param int $id customer ID
 	 */
-	public static function delete_item( $id ) {
+	public static function delete_item( $id,$table ) {
 		global $wpdb;
 
 		$wpdb->delete(
-			"{$wpdb->prefix}tagcon",
+			"{$wpdb->prefix}".$table,
 			[ 'id' => $id ],
 			[ '%d' ]
 		);
@@ -79,38 +86,78 @@ class Items_List {
 		return $result;
 	}
 
-	public static function get_tagcon_item( ) {
+	public static function get_title_item( ) {
 		global $wpdb;
-		$sql = "SELECT * FROM {$wpdb->prefix}tagcon";
-		$sql .= ' ORDER BY ' . 'tag';
+		$sql = "SELECT title FROM {$wpdb->prefix}tagcon_content";
+		$sql .= ' ORDER BY ' . 'title';
 
 		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
 
 		return $result;
 	}
 
-	public static function get_tagcon_item_id($id) {
+	public static function get_tagcon_item($table) {
 		global $wpdb;
-		$sql = "SELECT * FROM {$wpdb->prefix}tagcon WHERE id = ".$id;
-		$sql .= ' ORDER BY ' . 'tag';
+		$sql = "SELECT * FROM {$wpdb->prefix}".$table;
+		$sql .= ' ORDER BY ' . 'id';
 
 		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
 
 		return $result;
 	}
+
+	public static function link_content_by_id($id) {
+		global $wpdb;
+		$id = intval($id);
+		$sql = "SELECT id FROM {$wpdb->prefix}tagcon WHERE content_id = {$id}";
+
+		$data = $wpdb->get_results( $sql);
+		$id = intval($data[0]->id);
+
+		$sql = "SELECT content FROM {$wpdb->prefix}tagcon_content WHERE id = {$id}";
+
+		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
+		return $result;
+	}
+
+	public static function get_tagcon_item_content( ) {
+		global $wpdb;
+		$sql = "SELECT * FROM {$wpdb->prefix}tagcon_content";
+		$sql .= ' ORDER BY ' . 'title';
+
+		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
+
+		return $result;
+	}
+
 
 	/**
 	 * Add a item record.
 	 *
 	 * @param int $id customer ID
 	 */
-	public static function add_item( $tag, $content ) {
+	public static function add_item( $tag, $title ) {
 		global $wpdb;
+
+		$sql = "SELECT id FROM {$wpdb->prefix}tagcon_content WHERE title = '{$title}'";
+		$result = $wpdb->get_results($sql);
+		$id = intval($result[0]->id);
 
 		$wpdb->insert(
 			"{$wpdb->prefix}tagcon",
-			[ 'status' => 0, 'tag' => $tag, 'content' => $content ],
-			[ '%d', '%s', '%s']
+			[ 'status' => 0, 'content_id' => $id, 'tag' => $tag, 'title' => $title ],
+			[ '%d', '%d', '%s', '%s']
+		);
+
+		$sql = "SELECT id FROM {$wpdb->prefix}tagcon WHERE title = '{$title}'";
+		$result = $wpdb->get_results($sql);
+		$id = intval($result[0]->id);
+		$wpdb->update(
+			"{$wpdb->prefix}tagcon",
+			[ 'shortcode' => '[tagcon '.$id.']' ],
+			['id' => $id],
+			[ '%s' ],
+			[ '%d' ]
 		);
 	}
 
@@ -156,12 +203,29 @@ class SP_Plugin {
 			'WP TagCon',
 			'WP TagCon',
 			'manage_options',
-			'wp_tagcon/plugin.php',
+			'wp-tagcon_dashboard',
 			[ $this, 'plugin_settings_page' ]
 		);
-		add_submenu_page('wp_tagcon/plugin.php', 'Content', 'Content', 'manage_options', 'wp-tagcon/content.php', 'content');
-		add_submenu_page('wp_tagcon/plugin.php', 'Add To Content', 'Add To Content', 'manage_options', 'wp-tagcon/add_content.php', 'add_to_content');
+		add_submenu_page('wp-tagcon_dashboard', 'Content', 'Content', 'manage_options', 'content', 'content');
+		add_submenu_page('wp-tagcon_dashboard', 'Add To Content', 'Add To Content', 'manage_options', 'add_to_content', 'add_to_content');
 		add_action( "load-$hook", [ $this, 'screen_option' ] );
+
+		add_action('admin_enqueue_scripts', 'ln_reg_css_and_js');
+
+		    function ln_reg_css_and_js($hook)
+		    {
+
+		    $current_screen = get_current_screen();
+
+		    if ( strpos($current_screen->base, 'wp-tagcon') === false) {
+		        return;
+		    } else {
+
+		        wp_enqueue_style('boot_css', plugins_url('css/custom.css',__FILE__ ));
+		        //wp_enqueue_script('boot_js', plugins_url('inc/bootstrap.js',__FILE__ ));
+		        //wp_enqueue_script('ln_script', plugins_url('inc/main_script.js', __FILE__), ['jquery'], false, true);
+		        }
+		    }
 
 	}
 
@@ -226,6 +290,7 @@ class SP_Plugin {
 	}
 
 }
+
 
 
 add_action( 'plugins_loaded', function () {

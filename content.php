@@ -34,11 +34,10 @@ class Items extends WP_List_Table {
 	 */
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
-			case 'status':
-			case 'tag':
+			case 'id':
+			case 'title':
 			case 'content':
-			case 'edit':
-			case 'action':
+			case 'shortcode':
 				return $item[ $column_name ];
 			default:
 				return print_r( $item, true ); //Show the whole array for troubleshooting purposes
@@ -95,9 +94,9 @@ class Items extends WP_List_Table {
 		$columns = [
 			'cb'      => '<input type="checkbox" />',
 			'id'    => __( 'Id', 'sp' ),
-			'tag'    => __( 'Tag', 'sp' ),
+			'title'    => __( 'Title', 'sp' ),
 			'content' => __( 'Content', 'sp' ),
-			'edit' => __( 'Edit', 'sp' ),
+			'shortcode' => __( 'Shortcode', 'sp' ),
 			'action' => __( 'Action', 'sp' )
 		];
 
@@ -106,14 +105,14 @@ class Items extends WP_List_Table {
 
 
 	/**
-	 * Columns to make sortable.
+	 * Columns to make sortable.grygikrz5
 	 *
 	 * @return array
 	 */
 	public function get_sortable_columns() {
 		$sortable_columns = array(
-			'tag' => array( 'tag', true ),
-			'content' => array( 'content', false )
+			'title' => array( 'title', true ),
+			'shortcode' => array( 'shortcode', false )
 		);
 
 		return $sortable_columns;
@@ -145,14 +144,14 @@ class Items extends WP_List_Table {
 
 		$per_page     = $this->get_items_per_page( 'items_per_page', 5 );
 		$current_page = $this->get_pagenum();
-		$total_items  = self::record_count();
+		$total_items  = Items_List::record_count();
 
 		$this->set_pagination_args( [
 			'total_items' => $total_items, //WE have to calculate the total number of items
 			'per_page'    => $per_page //WE have to determine how many items to show on a page
 		] );
 
-		$this->items = self::get_items( $per_page, $current_page );
+		$this->items = Items_List::get_items( $per_page, $current_page, 'tagcon_content' );
 	}
 
 
@@ -168,7 +167,7 @@ class Items extends WP_List_Table {
 				die( 'Go get a life script kiddies' );
 			}
 			else {
-				self::delete_item( absint( $_GET['item'] ) );
+				Items_List::delete_item( absint( $_GET['item'] ) );
 
 		                // esc_url_raw() is used to prevent converting ampersand in url to "#038;"
 		                // add_query_arg() return the current url
@@ -187,7 +186,7 @@ class Items extends WP_List_Table {
 
 			// loop over the array of record IDs and delete them
 			foreach ( $delete_ids as $id ) {
-				self::delete_item( $id );
+				Items_List::delete_item( $id );
 
 			}
 
@@ -228,11 +227,9 @@ class SP_Content {
 
 		if ( ! empty( $_POST["action"] == 'add-tag' ) ) {
 			echo 'fireeeeee';
-			var_dump($_POST);
     	Items_List::add_item($_POST['tag-name'],$_POST['tag-content']);
 		}else{
 			echo 'not fire!!!';
-			var_dump($_POST);
 		}
 		?>
 		<div class="wrap">
@@ -309,15 +306,6 @@ class SP_Content {
 
 
 }
-$id=0;
-
-// Add shortag from added content
-function tagcon($id){
-    	$data = Items_List::get_tagcon_item_id($id[0]);
-			return $data[0]['content'];
-    }
-
-add_shortcode('tagcon', 'tagcon', $id);
 
 
 function content(){
