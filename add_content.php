@@ -30,11 +30,10 @@ class ItemsContent extends WP_List_Table {
 	public function column_default( $item, $column_name ) {
 		switch ( $column_name ) {
 			case 'id':
-			case 'status':
 			case 'tag':
 			case 'title':
 			case 'shortcode':
-			case 'edit':
+			case 'numberofposts':
 				return $item->$column_name;
 			default:
 				return print_r( $item, true ); //Show the whole array for troubleshooting purposes
@@ -55,9 +54,9 @@ class ItemsContent extends WP_List_Table {
 	}
 
 
-	function column_edit($item) {
+	function column_action($item) {
 	    return sprintf(
-	            '<a href="admin.php?page=add_to_content&id=%s#edit-tag" >Edit</a>', $item->id
+	            '<a href="admin.php?page=add_to_content&id=%s#edit-tag" >Delete</a>', $item->id
 	    );
 	}
 
@@ -94,7 +93,7 @@ class ItemsContent extends WP_List_Table {
 			'tag'    => __( 'tag', 'sp' ),
 			'title'    => __( 'title', 'sp' ),
 			'shortcode'    => __( 'shortcode', 'sp' ),
-			'edit' => __( 'edit', 'sp' ),
+			'numberofposts'    => __( 'Number Of Posts', 'sp' ),
 			'action' => __( 'action', 'sp' )
 		];
 
@@ -144,7 +143,7 @@ class ItemsContent extends WP_List_Table {
 			);
 
 			# >>>> Pagination
-			$per_page     = 5;
+			$per_page     = 10;
 			$current_page = $this->get_pagenum();
 			$total_items  = Items_List::record_count();
 			$this->set_pagination_args( array (
@@ -255,12 +254,10 @@ class SP_AddContent {
 	public function plugin_settings_page() {
 
 		if (!empty($_POST["link-tag"])) {
-			echo 'fireeeeee';
-			var_dump($_POST);
-    	Items_List::add_item($_POST['tag-name'],$_POST['content-title']);
-		}else{
-			echo 'not fire!!!';
-			var_dump($_POST);
+			if(empty($_POST['direct'])){
+				$_POST['direct'] = false;
+			}
+    	Items_List::add_item($_POST['tag-name'],$_POST['content-title'],$_POST['direct']);
 		}
 		?>
 		<div class="wrap">
@@ -300,7 +297,8 @@ class SP_AddContent {
 					</select>
 					<p>Choose your tag</p>
 				</div>
-
+				<input type="checkbox" id="direct" name="direct" value="direct" />
+				<p>Add content directy (only once) to post description insted shortcode only (shortcode can insert unlimited)</p>
 				<p class="submit"><input type="submit" name="link-tag" id="submit_form" class="button button-primary" value="Link tag to content"></p>
 			</form>
 		</div>
@@ -341,7 +339,7 @@ class SP_AddContent {
 		$option = 'per_page';
 		$args   = [
 			'label'   => 'Items',
-			'default' => 5,
+			'default' => 10,
 			'option'  => 'items_per_page'
 		];
 
@@ -364,7 +362,7 @@ $id=0;
 // Add shortag from added content
 function tagcon($id){
     	$data = Items_List::link_content_by_id($id[0]);
-			return $data[0]['content'];
+			return $data[0]->content;
     }
 
 add_shortcode('tagcon', 'tagcon', $id);

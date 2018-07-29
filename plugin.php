@@ -109,14 +109,11 @@ class Items_List {
 	public static function link_content_by_id($id) {
 		global $wpdb;
 		$id = intval($id);
-		$sql = "SELECT id FROM {$wpdb->prefix}tagcon WHERE content_id = {$id}";
+		$sql = "SELECT t.id, c.id, c.content
+						FROM {$wpdb->prefix}tagcon t, {$wpdb->prefix}tagcon_content c
+						WHERE t.id = {$id} AND t.content_id = c.id";
 
-		$data = $wpdb->get_results( $sql);
-		$id = intval($data[0]->id);
-
-		$sql = "SELECT content FROM {$wpdb->prefix}tagcon_content WHERE id = {$id}";
-
-		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
+		$result = $wpdb->get_results( $sql );
 		return $result;
 	}
 
@@ -136,32 +133,88 @@ class Items_List {
 	 *
 	 * @param int $id customer ID
 	 */
-	public static function add_item( $tag, $title ) {
+	public static function add_item( $tag, $title, $direct ) {
 		global $wpdb;
 
-		$sql = "SELECT id FROM {$wpdb->prefix}tagcon_content WHERE title = '{$title}'";
-		$result = $wpdb->get_results($sql);
-		$id = intval($result[0]->id);
-
+		$sql = "SELECT id,content FROM {$wpdb->prefix}tagcon_content WHERE title = '{$title}'";
+		$data = $wpdb->get_results($sql);
+		$id = intval($data[0]->id);
+		$content = $data[0]->content;
 		$wpdb->insert(
 			"{$wpdb->prefix}tagcon",
-			[ 'status' => 0, 'content_id' => $id, 'tag' => $tag, 'title' => $title ],
-			[ '%d', '%d', '%s', '%s']
+			[ 'content_id' => $id, 'tag' => $tag, 'title' => $title ],
+			[ '%d', '%s', '%s']
 		);
 
-		$sql = "SELECT id FROM {$wpdb->prefix}tagcon WHERE title = '{$title}'";
+		$sql = "SELECT id,tag FROM {$wpdb->prefix}tagcon WHERE title = '{$title}' ORDER BY id DESC LIMIT 1";
 		$result = $wpdb->get_results($sql);
 		$id = intval($result[0]->id);
-		$wpdb->update(
-			"{$wpdb->prefix}tagcon",
-			[ 'shortcode' => '[tagcon '.$id.']' ],
-			['id' => $id],
-			[ '%s' ],
-			[ '%d' ]
-		);
+
+		self::update_shortcode($id);
+
+		if(!$direct){
+			$content = '[tagcon '.$id.']';
+		}
+
+		$tags = self::get_tagcon_tags();
+		self::update_content($tags,$content);
+		self::tagcon_count($content, $id);
 	}
 
 
+	public static function update_shortcode($id) {
+			global $wpdb;
+			$wpdb->update(
+				"{$wpdb->prefix}tagcon",
+				[ 'shortcode' => '[tagcon '.$id.']' ],
+				['id' => $id],
+				[ '%s' ],
+				[ '%d' ]
+			);
+		}
+
+
+	public static function update_content($tags,$content) {
+		global $wpdb;
+		foreach ( $tags as $tag ):
+				$items = self::check_tags($tag);
+				if ( $items ) {
+						foreach($items as $item) {
+								$obj = self::check_content($item['object_id'],$content);
+								if(empty($obj[0]->ID)):
+									$wpdb->query("UPDATE {$wpdb->prefix}posts SET post_content = CONCAT(post_content, '{$content}') WHERE id = {$item['object_id']}");
+								endif;
+							}
+				}
+		endforeach;
+	}
+
+
+	public static function check_tags($tag) {
+		global $wpdb;
+		$tag = $tag['tag'];
+		$sql = "SELECT object_id FROM wp_term_relationships
+						INNER JOIN wp_term_taxonomy ON wp_term_taxonomy.term_taxonomy_id=wp_term_relationships.term_taxonomy_id
+						INNER JOIN wp_terms ON wp_terms.term_id=wp_term_taxonomy.term_id
+						WHERE name='{$tag}'";
+		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
+		return $result;
+	}
+
+	public static function check_content($id,$content) {
+		global $wpdb;
+		$sql = "SELECT ID FROM {$wpdb->prefix}posts WHERE ID = {$id} AND post_content LIKE '%{$content}%'";
+		$result = $wpdb->get_results( $sql);
+		return $result;
+	}
+
+	public static function get_tagcon_tags() {
+		global $wpdb;
+		$sql = "SELECT tag FROM {$wpdb->prefix}tagcon";
+		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
+
+		return $result;
+	}
 	/**
 	 * Returns the count of records in the database.
 	 *
@@ -175,6 +228,18 @@ class Items_List {
 		return $wpdb->get_var( $sql );
 	}
 
+	public static function tagcon_count($content,$id) {
+		global $wpdb;
+		$sql = "SELECT COUNT(*) FROM {$wpdb->prefix}posts WHERE post_content LIKE '%{$content}%'";
+		$count = $wpdb->get_var( $sql );
+		$wpdb->update(
+			"{$wpdb->prefix}tagcon",
+			[ 'numberofposts' => $count ],
+			['id' => $id],
+			[ '%s' ],
+			[ '%d' ]
+		);
+	}
 }
 
 
